@@ -1,37 +1,11 @@
 #include "MyThreadPool.h"
 
 ThreadPool::ThreadPool(size_t ThreadCount) {
-	for (int i = 0; i < ThreadCount; i++) {
-		workers.emplace_back(
-			[this] {
-				while (true) {
-					std::function<void()> task;
-					{
-						std::unique_lock<std::mutex> lock(queue_mutex);
-						condition.wait(lock, [this] {
-							return stop || !tasks.empty();
-							});
-
-						if (stop && tasks.empty()) return;
-
-						task = std::move(tasks.front());
-						tasks.pop();
-					}
-					try {
-						task();
-					}
-					catch (const std::exception& e) {
-						std::lock_guard<std::mutex> lock(queue_mutex);
-						std::cerr << "Exception in thread pool task: " << e.what() << std::endl;
-					}
-					catch (...) {
-						std::lock_guard<std::mutex> lock(queue_mutex);
-						std::cerr << "Unknown exception in thread pool task" << std::endl;
-					}
-				}
-			}
-		);
-	}
+	for (int i = 0; i < ThreadCount; i++)
+		workers.emplace_back([this] {
+			run();
+		}
+	);
 }
 
 void ThreadPool::submit(std::function<void()> task) {
@@ -57,4 +31,30 @@ ThreadPool::~ThreadPool() {
 	condition.notify_all();
 	for (std::thread& worker : workers)
 		worker.join();
+}
+
+void ThreadPool::run() {
+	while (true) {
+		std::function<void()> task;
+		{
+			std::unique_lock<std::mutex> lock(queue_mutex);
+			condition.wait(lock, [this] {
+				return stop || !tasks.empty();
+				});
+
+			if (stop && tasks.empty()) return;
+
+			task = std::move(tasks.front());
+			tasks.pop();
+		}
+		try {
+			task();
+		}
+		catch (const std::exception& e) {
+			std::cerr << "Exception in thread pool task: " << e.what() << std::endl;
+		}
+		catch (...) {
+			std::cerr << "Unknown exception in thread pool task" << std::endl;
+		}
+	}
 }

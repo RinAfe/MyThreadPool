@@ -24,6 +24,8 @@ public:
 
 	void submit(std::function<void()> task);
 
+	void run();
+
 	ThreadPool(const ThreadPool&) = delete;
 	ThreadPool& operator=(const ThreadPool&) = delete;
 };
